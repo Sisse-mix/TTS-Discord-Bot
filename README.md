@@ -50,12 +50,12 @@ A.I.VOICE Editor および VOICEVOX と連携する Discord 読み上げ＆AI対
 ### 1. Rust の導入
 [Rust 公式サイト](https://www.rust-lang.org/tools/install) から `rustup-init.exe` を取得し、デフォルト設定でインストールしてください。
 
-### 2. 依存関係の構築
-`install.bat` を実行してください。以下の処理が自動で行われます。
-1. パッケージマネージャ `uv` のインストール
-2. Python 3.11 仮想環境の作成
-3. 依存ライブラリのインストール
-4. Rust モジュール (`rust_core`) のリリースビルド
+### 2. 依存関係の構築 (完全 `uv` ネイティブ構成)
+`install.bat` を実行するか、ターミナルで以下のコマンドを1つ実行するだけで、Python 3.11 仮想環境の作成・依存ライブラリの導入・Rust モジュール (`rust_core`) のリリースビルドまでがすべて自動で行われます。
+
+```bash
+uv sync
+```
 
 ### 3. 設定ファイルの編集
 `.env.example` を `.env` にリネーム（または新規作成）し、トークンおよびパスを設定してください。
@@ -76,12 +76,15 @@ VOICEVOX_APP_PATH=C:\Users\Username\AppData\Local\Programs\VOICEVOX\VOICEVOX.exe
 ## 使用方法
 
 ### 1. 起動
-`start.bat` を実行してください。
+`start.bat` を実行するか、以下の `uv run` コマンドで直接起動できます。
+```bash
+uv run main.py
+```
 * **初回起動時**（またはカウントダウン中にキーを押した場合）：ウィザード形式でエンジン・ボイス・人格設定を選択します。
 * **2回目以降**：5秒間キーを押さなければ、前回保存された設定で自動的に起動します。
 * **コマンドライン引数での起動**:
   ```bash
-  python main.py --headless --engine voicevox --persona zundamon --voice "ずんだもん(ノーマル)"
+  uv run main.py --headless --engine voicevox --persona zundamon --voice "ずんだもん(ノーマル)"
   ```
 
 ### 2. 主要スラッシュコマンド

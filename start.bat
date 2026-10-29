@@ -1,25 +1,25 @@
 @echo off
 cd /d %~dp0
-title TTS-DiscordBot Launcher
+chcp 65001 > nul
+title TTS-Discord-Bot Launcher
 
 echo ===================================================
-echo  TTS-DiscordBot ‹N“®
+echo  TTS-Discord-Bot èµ·å‹• (uv run)
 echo ===================================================
 echo.
 
-rem ‰¼‘zŠÂ‹«‚Ìƒ`ƒFƒbƒN
-if not exist ".venv\Scripts\python.exe" (
-    echo [ƒGƒ‰[] .venv ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB
-    echo install.bat ‚ğÀs‚µ‚ÄŠÂ‹«‚ğ\’z‚µ‚Ä‚­‚¾‚³‚¢B
-    pause
-    exit /b
+set UV_LINK_MODE=copy
+
+where uv >nul 2>nul
+if %errorlevel% equ 0 (
+    uv run python main.py %*
+) else (
+    if not exist ".venv\Scripts\python.exe" (
+        echo [ã‚¨ãƒ©ãƒ¼] ä»®æƒ³ç’°å¢ƒãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚å…ˆã« install.bat ã‚’å®Ÿè¡Œã—ã¦ãã ã•ã„ã€‚
+        pause
+        exit /b 1
+    )
+    ".venv\Scripts\python.exe" main.py %*
 )
 
-rem PythonÀs’¼‘O‚É•¶šƒR[ƒh‚ğUTF-8‚É•ÏX (ƒƒO‚ÌŠG•¶š‘Îô)
-chcp 65001 > nul
-
-rem Bot‚ÌÀs
-".venv\Scripts\python.exe" main.py
-
-rem Bot‚ªI—¹‚Ü‚½‚ÍƒNƒ‰ƒbƒVƒ…‚µ‚½Û‚É‰æ–Ê‚ğ•Â‚¶‚È‚¢‚æ‚¤‚É‚·‚é
 pause

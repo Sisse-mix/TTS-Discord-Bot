@@ -1,83 +1,65 @@
 @echo off
 cd /d %~dp0
-title Bot Installer Setup
+chcp 65001 > nul
+title Bot Installer Setup (uv)
 
 echo ========================================================
-echo  TTS-DiscordBot ŠÂ‹«\’zƒCƒ“ƒXƒg[ƒ‰[
+echo  TTS-Discord-Bot ç’°å¢ƒæ§‹ç¯‰ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ©ãƒ¼ (uv ãƒã‚¤ãƒ†ã‚£ãƒ–)
 echo ========================================================
 echo.
 
-REM --- Step 1: UV Check & Install ---
-echo  [ƒXƒeƒbƒv 1/4] ƒc[ƒ‹(uv)‚ÌŠm”F’†...
+REM --- Step 1: uv ã®ç¢ºèªãƒ»å°å…¥ ---
+echo [1/3] uv ã®ç¢ºèªä¸­...
+where uv >nul 2>nul
+if %errorlevel% equ 0 (
+    echo  - uv ã¯æ—¢ã«ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã•ã‚Œã¦ã„ã¾ã™ã€‚
+    goto :CHECK_RUST
+)
+
 python -m uv --version >nul 2>nul
 if %errorlevel% equ 0 (
-    echo  - uv ‚Í³í‚É“®ì‚µ‚Ä‚¢‚Ü‚·B
-    goto :VENV_CREATE
+    echo  - python -m uv ã‚’æ¤œå‡ºã—ã¾ã—ãŸã€‚
+    goto :CHECK_RUST
 )
 
-echo  - uv ‚ªŒ©‚Â‚©‚ç‚È‚¢A‚Ü‚½‚ÍƒpƒX‚ª’Ê‚Á‚Ä‚¢‚Ü‚¹‚ñB
-echo  - ƒCƒ“ƒXƒg[ƒ‹‚ğ‚İ‚Ü‚·...
+echo  - uv ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¦ã„ã¾ã™...
 pip install uv
 if %errorlevel% neq 0 (
-    echo [ƒGƒ‰[] uv‚ÌƒCƒ“ƒXƒg[ƒ‹‚É¸”s‚µ‚Ü‚µ‚½B
+    echo [ã‚¨ãƒ©ãƒ¼] uv ã®ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã«å¤±æ•—ã—ã¾ã—ãŸã€‚
     pause
-    exit /b
+    exit /b 1
 )
 
-REM --- Step 2: Venv Creation (Python 3.11) ---
-:VENV_CREATE
+REM --- Step 2: Rust (cargo) ã®ç¢ºèª ---
+:CHECK_RUST
 echo.
-echo  [ƒXƒeƒbƒv 2/4] Python 3.11 ‰¼‘zŠÂ‹«‚ğì¬‚µ‚Ä‚¢‚Ü‚·...
-
-if exist .venv (
-    echo  - Šù‘¶‚Ì‰¼‘zŠÂ‹«‚ğƒNƒŠ[ƒ“ƒAƒbƒv‚µ‚Ä‚¢‚Ü‚·...
-    rmdir /s /q .venv
-)
-
-echo  ¦ ‰‰ñ‚ÍPython 3.11‚Ìƒ_ƒEƒ“ƒ[ƒh‚ªs‚í‚ê‚éê‡‚ª‚ ‚è‚Ü‚·B
-
-REM '--seed' ƒIƒvƒVƒ‡ƒ“‚ğg—p‚µA‰¼‘zŠÂ‹«ì¬‚Épip‚ğƒCƒ“ƒXƒg[ƒ‹‚·‚é
-python -m uv venv .venv --python 3.11 --seed
-if %errorlevel% neq 0 (
-    echo [ƒGƒ‰[] ‰¼‘zŠÂ‹«‚Ìì¬‚É¸”s‚µ‚Ü‚µ‚½B
-    pause
-    exit /b
-)
-
-REM --- Step 3: Install Libraries ---
-echo.
-echo  [ƒXƒeƒbƒv 3/4] ƒ‰ƒCƒuƒ‰ƒŠ‚ğƒCƒ“ƒXƒg[ƒ‹‚µ‚Ä‚¢‚Ü‚·...
-
-REM ‰¼‘zŠÂ‹«‚ÌŠO‘¤‚©‚çƒCƒ“ƒXƒg[ƒ‹‚ğÀs
-python -m uv pip install -r requirements.txt --python .venv
-if %errorlevel% neq 0 (
-    echo [ƒGƒ‰[] ƒ‰ƒCƒuƒ‰ƒŠ‚ÌƒCƒ“ƒXƒg[ƒ‹‚É¸”s‚µ‚Ü‚µ‚½B
-    pause
-    exit /b
-)
-
-REM --- Step 4: Build Rust ---
-echo.
-echo  [ƒXƒeƒbƒv 4/4] RustŠg’£ƒ‚ƒWƒ…[ƒ‹‚ğƒrƒ‹ƒh‚µ‚Ä‚¢‚Ü‚·...
+echo [2/3] Rust ã‚³ãƒ³ãƒ‘ã‚¤ãƒ© (cargo) ã®ç¢ºèªä¸­...
 where cargo >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [ƒGƒ‰[] Rust ^(cargo^) ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñBRust‚ğƒCƒ“ƒXƒg[ƒ‹‚µ‚Ä‚­‚¾‚³‚¢B
+    echo [ã‚¨ãƒ©ãƒ¼] Rust ^(cargo^) ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚rustup ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¦ãã ã•ã„ã€‚
     pause
-    exit /b
+    exit /b 1
 )
+echo  - Rust (cargo) ã‚’ç¢ºèªã—ã¾ã—ãŸã€‚
 
-REM pip‚ª‘¶İ‚·‚é‚½‚ß•W€ƒ‚[ƒh‚ÅÀs
-.venv\Scripts\maturin develop -m rust_core/Cargo.toml --release
+REM --- Step 3: uv sync (Python 3.11 + ä¾å­˜ãƒ©ã‚¤ãƒ–ãƒ©ãƒª + rust_core è‡ªå‹•ãƒ“ãƒ«ãƒ‰) ---
+echo.
+echo [3/3] uv sync ã«ã‚ˆã‚Šä»®æƒ³ç’°å¢ƒã¨ Rust æ‹¡å¼µãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ« (rust_core) ã‚’æ§‹ç¯‰ã—ã¦ã„ã¾ã™...
+set UV_LINK_MODE=copy
+uv sync
 if %errorlevel% neq 0 (
-    echo [ƒGƒ‰[] RustŠg’£‚Ìƒrƒ‹ƒh‚É¸”s‚µ‚Ü‚µ‚½B
-    pause
-    exit /b
+    python -m uv sync
+    if %errorlevel% neq 0 (
+        echo [ã‚¨ãƒ©ãƒ¼] ç’°å¢ƒæ§‹ç¯‰ã«å¤±æ•—ã—ã¾ã—ãŸã€‚
+        pause
+        exit /b 1
+    )
 )
 
 echo.
 echo ========================================================
-echo  ƒZƒbƒgƒAƒbƒvŠ®—¹I
-echo  ‰½‚©ƒL[‚ğ‰Ÿ‚·‚ÆI—¹‚µ‚Ü‚·B
+echo  ã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—å®Œäº†ï¼
+echo  start.bat ã¾ãŸã¯ `uv run main.py` ã§èµ·å‹•ã§ãã¾ã™ã€‚
 echo ========================================================
 echo.
 pause

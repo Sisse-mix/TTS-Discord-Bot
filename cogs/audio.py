@@ -4,10 +4,13 @@ import logging
 import random
 import traceback
 from typing import Optional
+
 import discord
 from discord import app_commands
 from discord.ext import commands
+
 import settings
+
 from .consts import (
     extract_emotion,
     load_json,

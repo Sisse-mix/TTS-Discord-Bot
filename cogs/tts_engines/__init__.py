@@ -1,6 +1,7 @@
+import logging
+
 from .aivoice import AIVoiceProvider
 from .voicevox import VoicevoxProvider
-import logging
 
 logger = logging.getLogger(__name__)
 

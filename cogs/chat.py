@@ -1,14 +1,17 @@
-from collections import deque
 import logging
 import os
 import random
 import re
 import traceback
+from collections import deque
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
+
 import settings
+
 from .consts import (
     TAG_REGEX,
     extract_emotion,

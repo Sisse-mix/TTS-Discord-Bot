@@ -1,0 +1,33 @@
+[project]
+name = "tts-discord-bot"
+version = "0.2.0"
+description = "A.I.VOICE & VOICEVOX + LLM Discord TTS Bot with Rust Audio Pipeline"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "discord.py[voice]>=2.4.0",
+    "openai>=1.50.0",
+    "python-dotenv>=1.0.0",
+    "pythonnet>=3.0.3",
+    "PyNaCl>=1.5.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "rust_core",
+]
+
+[dependency-groups]
+dev = [
+    "maturin>=1.10,<2.0",
+    "ruff>=0.8.0",
+]
+
+[tool.uv.sources]
+rust_core = { path = "rust_core", editable = true }
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
