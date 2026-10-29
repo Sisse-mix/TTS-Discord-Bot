@@ -1,4 +1,9 @@
 {
+    "display_name": "結月ゆかり",
+    "default_voices": {
+        "aivoice": "結月 ゆかり",
+        "voicevox": "冥鳴ひまり(ノーマル)"
+    },
     "alarm_set_text": [
         "⏰ 承知しました: **{time}** {icon} 「{message}」\n(時間通りにお知らせします。)",
         "⏰ セットしました: **{time}** {icon} 「{message}」\n(任せてください。)",
@@ -113,5 +118,9 @@
     "chat_error_reply": [
         "申し訳ありません、うまく思考がまとまりませんでした。[SAD]",
         "少し調子が悪いようです……もう一度お願いできますか？[SAD]"
+    ],
+    "time_signal_voice": [
+        "マスター、{hour}時になりました。適度に休憩してくださいね。[NORMAL]",
+        "{hour}時をお知らせします。順調に進んでいますか？[JOY]"
     ]
 }

@@ -6,7 +6,11 @@
 # --- 実行時生成データ (ログ・DB) ---
 daily_log.json
 alarms.json
+timers.json
+config.json
 dictionary.json
+*.tmp
+logs/
 *.log
 
 # --- Python ---

@@ -7,7 +7,13 @@ class TTSProvider(ABC):
         pass
 
     @abstractmethod
-    def generate_audio(self, text: str, emotion: str, output_path: str):
+    def generate_audio(
+        self, text: str, emotion: str, voice_override: str | None = None
+    ) -> bytes | None:
+        """
+        音声データを生成し、WAVフォーマットのバイト列として返す。
+        voice_override が指定された場合は、この生成のみ一時的に指定ボイスを使用する。
+        """
         pass
 
     @abstractmethod

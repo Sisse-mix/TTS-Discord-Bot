@@ -1,30 +1,95 @@
-import discord
-from discord.ext import commands, tasks
-import os
+import argparse
 import asyncio
 import logging
-import random
+from logging.handlers import RotatingFileHandler
+import os
 import pathlib
-import time
+import random
 import subprocess
-import json
+import sys
+import time
+import discord
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
 # 設定ファイルの読み込み
 load_dotenv()
 import settings  # noqa: E402
+from cogs.consts import load_json, save_json  # noqa: E402
 from cogs.tts_engines import get_tts_provider  # noqa: E402
 
-# ログ設定
+# ログディレクトリの作成とRotatingFileHandler設定
+LOG_DIR = pathlib.Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
+
+log_formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+file_handler = RotatingFileHandler(
+    LOG_DIR / "bot.log",
+    maxBytes=5 * 1024 * 1024,  # 5MB
+    backupCount=3,
+    encoding="utf-8",
+)
+file_handler.setFormatter(log_formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(log_formatter)
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[file_handler, stream_handler],
 )
 logger = logging.getLogger(__name__)
 
 # 環境変数からトークンを取得
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+
+def wait_enter_with_timeout(timeout_sec: int = 5) -> bool:
+    """
+    Windowsコンソール等で timeout_sec 秒間キー入力を待つ。
+    何かキーが押されたら True（手動ウィザードへ）、タイムアウトしたら False（自動起動へ）を返す。
+    """
+    if not sys.stdin or not sys.stdin.isatty():
+        return False
+
+    if os.name == "nt":
+        import msvcrt
+
+        # 既存の入力バッファをクリア
+        while msvcrt.kbhit():
+            msvcrt.getwch()
+
+        start = time.time()
+        while time.time() - start < timeout_sec:
+            if msvcrt.kbhit():
+                msvcrt.getwch()
+                print()
+                return True
+            remaining = int(timeout_sec - (time.time() - start)) + 1
+            print(
+                f"\r-> 変更する場合は何かキーを押してください（あと {remaining} 秒で自動起動）... ",
+                end="",
+                flush=True,
+            )
+            time.sleep(0.1)
+        print(
+            "\r-> 前回の設定を使用して自動起動します。                                      "
+        )
+        return False
+    else:
+        import select
+
+        print(
+            f"-> 変更する場合は Enter キーを押してください（{timeout_sec}秒で自動起動）..."
+        )
+        rlist, _, _ = select.select([sys.stdin], [], [], timeout_sec)
+        if rlist:
+            sys.stdin.readline()
+            return True
+        return False
 
 
 def input_index(prompt, options, zero_label=None):
@@ -42,7 +107,7 @@ def input_index(prompt, options, zero_label=None):
         print(f"  [{i + 1}] {opt}")
 
     while True:
-        val = input(f"番号を入力してください ({start_num}-{len(options)}) > ")
+        val = input(f"番号を入力してください ({start_num}-{len(options)}) > ").strip()
         if not val.isdigit():
             continue
         idx = int(val)
@@ -156,51 +221,6 @@ def wait_for_launch(provider, max_retries=60):
     return []
 
 
-def load_character_config(char_dir: pathlib.Path):
-    """
-    指定されたキャラクターフォルダ内の設定ファイルを読み込む。
-    - *.txt -> settings.SYSTEM_PROMPT
-    - *.json -> settings.RESPONSES (マージ)
-    """
-    # 初期化（デフォルトに戻す）
-    settings.RESPONSES = settings.DEFAULT_RESPONSES.copy()
-    settings.SYSTEM_PROMPT = None
-
-    # フォルダ内のファイルを走査
-    txt_file = None
-    json_file = None
-
-    for f in char_dir.glob("*"):
-        if f.suffix == ".txt" and txt_file is None:
-            txt_file = f
-        elif f.suffix == ".json" and json_file is None:
-            json_file = f
-
-    # プロンプト読み込み
-    if txt_file:
-        try:
-            with open(txt_file, "r", encoding="utf-8") as f:
-                settings.SYSTEM_PROMPT = f.read()
-            logger.info(f"Loaded prompt from: {txt_file.name}")
-        except Exception as e:
-            logger.error(f"Failed to load prompt: {e}")
-    else:
-        logger.warning(f"No .txt prompt found in {char_dir.name}")
-
-    # セリフ集読み込み
-    if json_file:
-        try:
-            with open(json_file, "r", encoding="utf-8") as f:
-                custom_responses = json.load(f)
-            # デフォルト設定に上書きマージ
-            settings.RESPONSES.update(custom_responses)
-            logger.info(f"Loaded responses from: {json_file.name}")
-        except Exception as e:
-            logger.error(f"Failed to load json responses: {e}")
-
-    return bool(txt_file)
-
-
 class TTSBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -227,7 +247,8 @@ class TTSBot(commands.Bot):
     async def on_ready(self):
         logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
         logger.info(f"Engine: {settings.TTS_ENGINE}")
-        logger.info(f"Character: {settings.STARTUP_CHARACTER}")
+        logger.info(f"Character Voice: {settings.STARTUP_CHARACTER}")
+        logger.info(f"Persona: {settings.CURRENT_PERSONA_DISPLAY_NAME}")
         logger.info("System Ready.")
         if not self.change_status_loop.is_running():
             self.change_status_loop.start()
@@ -244,69 +265,137 @@ class TTSBot(commands.Bot):
         await self.wait_until_ready()
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="TTS Discord Bot")
+    parser.add_argument(
+        "--engine",
+        choices=["aivoice", "voicevox"],
+        help="使用するTTSエンジンを指定します",
+    )
+    parser.add_argument(
+        "--voice",
+        type=str,
+        help="起動時に使用するTTSボイスプリセット名を指定します",
+    )
+    parser.add_argument(
+        "--persona",
+        type=str,
+        help="起動時に使用するキャラクター人格ID (akari, yukari, zundamon, none) を指定します",
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="対話ウィザードをスキップし、保存設定または引数で即座に起動します",
+    )
+    parser.add_argument(
+        "--wizard",
+        action="store_true",
+        help="強制的に対話型起動ウィザードを表示します",
+    )
+    return parser.parse_args()
+
+
 async def main():
-    print("=== 起動設定ウィザード ===")
+    args = parse_args()
+    config = load_json("config.json", {})
 
-    # 1. TTSエンジンの選択
-    engines = ["A.I.VOICE", "VOICEVOX"]
-    selected_engine = input_index("使用するTTSエンジンを選択してください:", engines)
+    saved_engine = args.engine or config.get("last_engine")
+    saved_voice = args.voice or config.get("last_voice")
+    saved_persona = (
+        args.persona if args.persona is not None else config.get("last_persona")
+    )
 
-    if selected_engine == "A.I.VOICE":
-        settings.TTS_ENGINE = "aivoice"
-    elif selected_engine == "VOICEVOX":
-        settings.TTS_ENGINE = "voicevox"
-    else:
-        settings.TTS_ENGINE = "aivoice"
+    use_wizard = args.wizard
+    if not use_wizard and not args.headless:
+        if saved_engine and saved_voice:
+            print("=== 自動起動チェック ===")
+            print(
+                f"前回の設定: エンジン={saved_engine} / ボイス={saved_voice} / 人格={saved_persona or 'オフ'}"
+            )
+            use_wizard = wait_enter_with_timeout(5)
+        else:
+            use_wizard = True
 
-    print(f"-> エンジン: {settings.TTS_ENGINE} を選択しました。")
+    if use_wizard:
+        print("=== 起動設定ウィザード ===")
 
-    try_launch_app(settings.TTS_ENGINE)
+        # 1. TTSエンジンの選択
+        engines = ["A.I.VOICE", "VOICEVOX"]
+        selected_engine = input_index("使用するTTSエンジンを選択してください:", engines)
+        settings.TTS_ENGINE = "voicevox" if selected_engine == "VOICEVOX" else "aivoice"
+        print(f"-> エンジン: {settings.TTS_ENGINE} を選択しました。")
 
-    # 2. キャラクター選択 (TTS)
-    engine_name = settings.TTS_ENGINE
-    temp_provider = get_tts_provider(engine_name)
-    presets = wait_for_launch(temp_provider)
+        try_launch_app(settings.TTS_ENGINE)
 
-    if presets:
-        char_choice = select_character_interactive(presets)
-        if char_choice:
-            settings.STARTUP_CHARACTER = char_choice
-            print(f"-> キャラクター: {char_choice} を選択しました。")
-    else:
-        print("! プリセットが見つかりませんでした。")
+        # 2. キャラクター選択 (TTS)
+        temp_provider = get_tts_provider(settings.TTS_ENGINE)
+        presets = wait_for_launch(temp_provider)
+        temp_provider.terminate()
 
-    # 3. 人格設定 (charactersフォルダ) 選択
-    char_base_dir = pathlib.Path("characters")
-    char_dirs = []
+        if presets:
+            char_choice = select_character_interactive(presets)
+            if char_choice:
+                settings.STARTUP_CHARACTER = char_choice
+                print(f"-> キャラクター: {char_choice} を選択しました。")
+        else:
+            print("! プリセットが見つかりませんでした。")
 
-    if char_base_dir.exists():
-        char_dirs = [d for d in char_base_dir.iterdir() if d.is_dir()]
-
-    if char_dirs:
-        # フォルダ名でソート
-        char_names = sorted([d.name for d in char_dirs])
-
-        selected_char_name = input_index(
-            "使用する人格設定(characters)を選択してください:",
-            char_names,
-            zero_label="LLMを使用しない (No Use)",
-        )
-
-        if selected_char_name:
-            target_dir = char_base_dir / selected_char_name
-            print(f"-> 設定フォルダ: {selected_char_name} を読み込みます...")
-
-            if load_character_config(target_dir):
-                print("-> 完了しました。")
+        # 3. 人格設定 (charactersフォルダ) 選択
+        personas = settings.get_available_personas()
+        if personas:
+            persona_keys = list(personas.keys())
+            persona_labels = [
+                f"{personas[k]['display_name']} ({k})" for k in persona_keys
+            ]
+            selected_label = input_index(
+                "使用する人格設定(characters)を選択してください:",
+                persona_labels,
+                zero_label="LLMを使用しない (No Use)",
+            )
+            if selected_label:
+                idx = persona_labels.index(selected_label)
+                chosen_persona_id = persona_keys[idx]
+                settings.load_character_config(personas[chosen_persona_id]["dir"])
+                print(
+                    f"-> 人格設定: {personas[chosen_persona_id]['display_name']} を読み込みました。"
+                )
             else:
-                print("-> 注意: プロンプトファイルが見つかりませんでした。")
-    else:
-        print(
-            "\n※ charactersフォルダにキャラクター設定が見つかりません。LLM機能はオフで起動します。"
-        )
-        settings.SYSTEM_PROMPT = None
+                chosen_persona_id = None
+                settings.load_character_config(None)
+        else:
+            print(
+                "\n※ charactersフォルダにキャラクター設定が見つかりません。LLM機能はオフで起動します。"
+            )
+            chosen_persona_id = None
+            settings.load_character_config(None)
 
-    # Bot起動
+        # 選択内容を config.json に保存
+        config["last_engine"] = settings.TTS_ENGINE
+        config["last_voice"] = settings.STARTUP_CHARACTER
+        config["last_persona"] = chosen_persona_id
+        save_json("config.json", config)
+
+    else:
+        # 自動起動（またはCLI引数起動）
+        settings.TTS_ENGINE = saved_engine or "aivoice"
+        settings.STARTUP_CHARACTER = saved_voice
+        try_launch_app(settings.TTS_ENGINE)
+
+        temp_provider = get_tts_provider(settings.TTS_ENGINE)
+        wait_for_launch(temp_provider, max_retries=30)
+        temp_provider.terminate()
+
+        if saved_persona and str(saved_persona).lower() != "none":
+            settings.load_character_config(saved_persona)
+        else:
+            settings.load_character_config(None)
+
+    if not TOKEN:
+        logger.critical(
+            "DISCORD_TOKEN が設定されていません。.env ファイルを確認してください。"
+        )
+        return
+
     print("\nBotを起動しています...")
     async with TTSBot() as bot:
         await bot.start(TOKEN)

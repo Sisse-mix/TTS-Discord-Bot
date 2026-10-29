@@ -1,11 +1,17 @@
+import json
+import logging
 import os
 import pathlib
 
+logger = logging.getLogger(__name__)
+
 # プロジェクトのルートディレクトリ
 BASE_DIR = pathlib.Path(__file__).parent
+CHARACTERS_DIR = BASE_DIR / "characters"
+CONFIG_FILE = BASE_DIR / "config.json"
 
 # --- TTSエンジン設定 ---
-TTS_ENGINE = "aivoice"
+TTS_ENGINE = os.getenv("TTS_ENGINE", "aivoice")
 
 # --- A.I.VOICE 設定 ---
 AIVOICE_DLL_PATH = os.getenv(
@@ -21,8 +27,23 @@ VOICEVOX_URL = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021")
 VOICEVOX_SPEAKER_ID = int(os.getenv("VOICEVOX_SPEAKER_ID", "3"))
 VOICEVOX_APP_PATH = os.getenv("VOICEVOX_APP_PATH", "")
 
-# --- 起動時の初期設定保持用 ---
+# --- LLM 設定 ---
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:1234/v1")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "lm-studio")
+LLM_MODEL = os.getenv("LLM_MODEL", "local-model")
+
+# --- 音声加工パイプライン設定 (Rust Core) ---
+AUDIO_GAIN_DB = float(os.getenv("AUDIO_GAIN_DB", "3.0"))
+AUDIO_SILENCE_THRESHOLD = int(os.getenv("AUDIO_SILENCE_THRESHOLD", "100"))
+AUDIO_REVERB_ENABLED = os.getenv("AUDIO_REVERB_ENABLED", "true").lower() == "true"
+AUDIO_REVERB_DELAY_MS = int(os.getenv("AUDIO_REVERB_DELAY_MS", "50"))
+AUDIO_REVERB_DECAY = float(os.getenv("AUDIO_REVERB_DECAY", "0.3"))
+AUDIO_REVERB_MIX = float(os.getenv("AUDIO_REVERB_MIX", "0.15"))
+
+# --- 起動時の初期設定・現在状態保持用 ---
 STARTUP_CHARACTER = None
+CURRENT_PERSONA_ID = None
+CURRENT_PERSONA_DISPLAY_NAME = "デフォルト"
 
 # --- AIシステム設定 ---
 SYSTEM_PROMPT = """
@@ -174,12 +195,112 @@ DEFAULT_RESPONSES = {
         "失礼します。ゆっくり休んでくださいね。[NORMAL]",
         "バイバイ！[JOY]",
     ],
-    # --- エラー処理 ---
+    # --- エラー処理・時報 ---
     "chat_error_reply": [
         "ごめんなさい、ちょっと頭が痛くて……うまく考えがまとまりませんでした。[SAD]",
         "うーん……うまく答えが出せません。もう一度聞いてもらえますか？[SAD]",
+    ],
+    "time_signal_voice": [
+        "{hour}時になりました。[NORMAL]",
+        "マスター、{hour}時ですよ！[JOY]",
     ],
 }
 
 # 実行時に使用されるレスポンス辞書（初期値はデフォルトのコピー）
 RESPONSES = DEFAULT_RESPONSES.copy()
+
+
+def get_available_personas() -> dict[str, dict]:
+    """
+    characters/ フォルダ内のすべての人格設定を走査してメタデータ一覧を返す。
+    戻り値: { "akari": {"display_name": "紲星あかり", "dir": Path(...), "default_voices": {...}}, ... }
+    """
+    personas: dict[str, dict] = {}
+    if not CHARACTERS_DIR.exists():
+        return personas
+
+    for d in sorted(CHARACTERS_DIR.iterdir(), key=lambda p: p.name):
+        if not d.is_dir():
+            continue
+        persona_id = d.name
+        display_name = persona_id
+        default_voices = {}
+
+        json_files = list(d.glob("*.json"))
+        if json_files:
+            try:
+                with open(json_files[0], "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                display_name = data.get("display_name") or persona_id
+                default_voices = data.get("default_voices") or {}
+            except Exception:
+                pass
+
+        personas[persona_id] = {
+            "id": persona_id,
+            "display_name": display_name,
+            "dir": d,
+            "default_voices": default_voices,
+        }
+    return personas
+
+
+def load_character_config(char_dir_or_id: pathlib.Path | str | None) -> bool:
+    """
+    指定されたキャラクターフォルダ（またはID）の設定ファイルを読み込み、
+    settings.SYSTEM_PROMPT と settings.RESPONSES を更新する。
+    None や "none" が渡された場合は LLM オフ・デフォルトセリフにリセットする。
+    """
+    global RESPONSES, SYSTEM_PROMPT, CURRENT_PERSONA_ID, CURRENT_PERSONA_DISPLAY_NAME
+
+    RESPONSES = DEFAULT_RESPONSES.copy()
+    SYSTEM_PROMPT = None
+    CURRENT_PERSONA_ID = None
+    CURRENT_PERSONA_DISPLAY_NAME = "デフォルト (LLMオフ)"
+
+    if not char_dir_or_id or str(char_dir_or_id).lower() == "none":
+        return False
+
+    if isinstance(char_dir_or_id, str):
+        char_dir = CHARACTERS_DIR / char_dir_or_id
+    else:
+        char_dir = char_dir_or_id
+
+    if not char_dir.exists() or not char_dir.is_dir():
+        logger.warning(f"Character directory not found: {char_dir}")
+        return False
+
+    CURRENT_PERSONA_ID = char_dir.name
+    CURRENT_PERSONA_DISPLAY_NAME = char_dir.name
+
+    txt_file = None
+    json_file = None
+
+    for f in sorted(char_dir.glob("*")):
+        if f.suffix == ".txt" and txt_file is None:
+            txt_file = f
+        elif f.suffix == ".json" and json_file is None:
+            json_file = f
+
+    if txt_file:
+        try:
+            with open(txt_file, "r", encoding="utf-8") as f:
+                SYSTEM_PROMPT = f.read()
+            logger.info(f"Loaded prompt from: {txt_file.name}")
+        except Exception as e:
+            logger.error(f"Failed to load prompt: {e}")
+    else:
+        logger.warning(f"No .txt prompt found in {char_dir.name}")
+
+    if json_file:
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                custom_responses = json.load(f)
+            RESPONSES.update(custom_responses)
+            if custom_responses.get("display_name"):
+                CURRENT_PERSONA_DISPLAY_NAME = custom_responses["display_name"]
+            logger.info(f"Loaded responses from: {json_file.name}")
+        except Exception as e:
+            logger.error(f"Failed to load json responses: {e}")
+
+    return bool(txt_file)

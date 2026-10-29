@@ -1,4 +1,9 @@
 {
+    "display_name": "ずんだもん",
+    "default_voices": {
+        "aivoice": "ずんだもん",
+        "voicevox": "ずんだもん(ノーマル)"
+    },
     "alarm_set_text": [
         "⏰ 了解なのだ: **{time}** {icon} 「{message}」\n(ちゃんと起きるのだ)",
         "⏰ セットしたのだ: **{time}** {icon} 「{message}」\n(ボクに任せるのだ！)",
@@ -113,5 +118,9 @@
     "chat_error_reply": [
         "むむ……よくわからなかったのだ。[SAD]",
         "頭がこんがらがったのだ。もう一回頼むのだ。[SAD]"
+    ],
+    "time_signal_voice": [
+        "{hour}時になったのだ！おやつの時間なのだ？[JOY]",
+        "おいマスター、もう{hour}時なのだぞ。無理しすぎないのだ。[NORMAL]"
     ]
 }
